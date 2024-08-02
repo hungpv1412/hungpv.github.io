@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="./hungpv/apple-touch-icon.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./hungpv/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="./hungpv/favicon-16x16.png"
+    />
+    <link rel="manifest" href="./hungpv/site.webmanifest" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- <script
+      defer
+      src="https://use.fontawesome.com/releases/v5.0.13/js/all.js"
+    ></script> -->
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
+    />
+
+    <style>
+      .header {
+        text-align: center;
+        color: blue;
+        font-size: 40px;
+      }
+
+      .subheader {
+        text-align: center;
+        /* color: blue; */
+        font-size: 20px;
+      }
+
+      .question {
+        text-align: center;
+        /* color: blue; */
+        font-size: 20px;
+      }
+
+      .control {
+        text-align: center;
+        margin-top: 20px;
+      }
+
+      .control .btn-next,
+      .control .btn-prev {
+        margin-left: 10px;
+      }
+
+      .btn {
+        background-color: blue;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        padding: 10px 20px;
+        margin: 10px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      .btn i {
+        margin-right: 5px;
+        margin-left: 5px;
+      }
+
+      .recording {
+        text-align: center;
+      }
+
+      .recording .btn-record {
+        background-color: blue;
+        color: blue;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        /* border: 1px solid blue; */
+
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+      }
+      .recording .btn-record i {
+        margin-right: 5px;
+        margin-left: 5px;
+
+        font-size: 25px;
+
+        color: white;
+      }
+
+      .btn-listen {
+        color: blue;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        /* border: 1px solid blue; */
+        background-color: white;
+        width: 50px;
+        height: 50px;
+      }
+
+      .question-number {
+        font-size: 20px;
+      }
+
+      .question-container {
+        text-align: center;
+        display: flex;
+        margin-left: 40px;
+        justify-content: center;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <h1 class="header">Practice saying the following words and sentences</h1>
+      <h3 class="subheader">
+        Click <i class="fas fa-volume-up" style="color: blue"></i> to hear and
+        click <i class="fas fa-microphone" style="color: blue"></i> to record
+        your voice.
+      </h3>
+      <div class="question-container">
+        <button class="btn-listen" @click="listen">
+          <i class="fas fa-volume-up"></i>
+        </button>
+        <p class="question">
+          {{ index + 1 }}.
+
+          <span v-if="highlight_words_index.length > 0">
+            <span v-for="(word, index) in sentenceArray" :key="index">
+              <span
+                v-if="highlight_words_index.includes(index)"
+                style="color: green"
+                >{{ word}}</span
+              >
+              <span v-else style="color: red">{{ word}}</span>
+              <span>{{ " "}}</span>
+            </span>
+          </span>
+          <span v-else>{{ messages[index] }}</span>
+        </p>
+      </div>
+
+      <div class="recording">
+        <button class="btn-record" @click="speech">
+          <i class="fas fa-microphone-alt"></i>
+        </button>
+      </div>
+      <div class="control">
+        <button class="btn btn-prev" @click="prev">
+          <i class="fas fa-arrow-left"></i>Previous
+        </button>
+        <button class="btn btn-next" @click="next">
+          Next<i class="fas fa-arrow-right"></i>
+        </button>
+      </div>
+
+      <div class="result">
+        <p>Confidence: {{ (confidence*100).toFixed(2) }}%</p>
+        <br />
+        <p>Result: {{ result }}</p>
+        <br />
+        <p>Percentage: {{ percentage.toFixed(2) }}%</p>
+      </div>
+    </div>
+
+    <script>
+      const { createApp, ref, computed } = Vue;
+
+      createApp({
+        setup() {
+          const messages = ref([
+            "What sports do you do?",
+            "I play soccer.",
+            "How often do you play soccer?",
+            "I play soccer every weekend.",
+            "Who do you play with?",
+            "I play with my friends.",
+          ]);
+
+          const messages_audio = ref([
+            "./hungpv/audio/1.mp3",
+            "./hungpv/audio/2.mp3",
+            "./hungpv/audio/3.mp3",
+            "./hungpv/audio/4.mp3",
+            "./hungpv/audio/5.mp3",
+            "./hungpv/audio/6.mp3",
+          ]);
+
+          const index = ref(0);
+
+          const speechRecognition =
+            window.SpeechRecognition || window.webkitSpeechRecognition;
+          const result = ref("");
+
+          const percentage = ref(0);
+
+          const highlight_words_index = ref([]);
+
+          const confidence = ref(0);
+
+          const recognition = new speechRecognition();
+          recognition.lang = "en-US";
+          recognition.interimResults = true;
+          recognition.maxAlternatives = 1;
+
+          recognition.addEventListener("result", (e) => {
+            console.log(e.results);
+            if (e.results[0].isFinal) {
+              console.log(e.results[0][0].transcript);
+              result.value = e.results[0][0].transcript;
+              confidence.value = e.results[0][0].confidence;
+              highlight_words_index.value = findCorrectWords(
+                messages.value[index.value],
+                result.value
+              );
+              percentage.value =
+                (highlight_words_index.value.length /
+                  messages.value[index.value].split(" ").length) *
+                100;
+            }
+          });
+
+          recognition.addEventListener("end", (e) => {});
+
+          recognition.addEventListener("error", (e) => {
+            console.log(e);
+          });
+
+          recognition.addEventListener("soundstart", () => {
+            console.log("soundstart");
+          });
+
+          const sentenceArray = computed(() => {
+            return messages.value[index.value].split(" ");
+          });
+
+          function speech() {
+            clearHighlight();
+            recognition.start();
+          }
+
+          async function recordAndSendToSpeechToText() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+            });
+            const mediaRecorder = new MediaRecorder(stream);
+            const audioChunks = [];
+
+            mediaRecorder.addEventListener("dataavailable", (event) => {
+              audioChunks.push(event.data);
+            });
+
+            const stopRecording = () => {
+              mediaRecorder.stop();
+            };
+
+            mediaRecorder.start();
+
+            setTimeout(stopRecording, 10000);
+
+            return new Promise((resolve, reject) => {
+              mediaRecorder.addEventListener("stop", () => {
+                const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl);
+                audio.play();
+
+                const speechToText = new SpeechToText();
+                const audioFile = new File([audioBlob], "audio.wav", {
+                  type: "audio/wav",
+                });
+                const formData = new FormData();
+                formData.append("file", audioFile);
+
+                speechToText
+                  .recognize(formData)
+                  .then((response) => {
+                    const text =
+                      response.data.results[0].alternatives[0].transcript;
+                    const confidence =
+                      response.data.results[0].alternatives[0].confidence;
+                    resolve({ text, confidence });
+                  })
+                  .catch((error) => {
+                    reject(error);
+                  });
+              });
+            });
+          }
+
+          function findCorrectWords(originalSentence, speechToTextSentence) {
+            // Split the sentences into individual words
+            const originalWords = originalSentence
+              .toLowerCase()
+              .replace(/[\W_]+/g, " ")
+              .split(" ");
+            const speechToTextWords = speechToTextSentence
+              .toLowerCase()
+              .split(" ");
+
+            // Initialize a counter for correct words
+            let correctWordsCount = 0;
+            var local_highlight_words_index = [];
+            // Compare each word in the original sentence with the speech-to-text sentence
+            originalWords.forEach((word, index) => {
+              if (word === speechToTextWords[index]) {
+                local_highlight_words_index.push(index);
+              }
+            });
+
+            return local_highlight_words_index;
+          }
+
+          function next() {
+            if (index.value < messages.value.length - 1) {
+              index.value++;
+              clearHighlight();
+            }
+          }
+
+          function prev() {
+            if (index.value > 0) {
+              index.value--;
+              clearHighlight();
+            }
+          }
+
+          function listen() {
+            clearHighlight();
+            const audio = new Audio(messages_audio.value[index.value]);
+            audio.play();
+          }
+
+          function clearHighlight() {
+            highlight_words_index.value = [];
+          }
+          return {
+            messages,
+            messages_audio,
+            speech,
+            listen,
+            index,
+            next,
+            prev,
+            result,
+            confidence,
+            recordAndSendToSpeechToText,
+            highlight_words_index,
+            percentage,
+            sentenceArray,
+          };
+        },
+      }).mount("#app");
+    </script>
+  </body>
+</html>
